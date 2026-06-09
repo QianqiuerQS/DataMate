@@ -1,11 +1,13 @@
 import { User, Globe, LogIn, UserPlus, Sparkles, Shield } from "lucide-react"
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useCallback } from "react";
 import { NavLink } from "react-router";
 import { Button, Dropdown, message } from "antd"
 import type { MenuProps } from 'antd'
 import { LoginDialog } from "./LoginDialog"
 import { SignupDialog } from "./SignupDialog"
 import { post, get } from "@/utils/request.ts";
+import { getCachedHomePageUrl, setCachedHomePageUrl } from "@/utils/systemParam";
+import { getHomePageUrl } from "@/utils/systemParam";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 
@@ -15,6 +17,7 @@ interface UserResponse {
   groupId?: string;
   authenticated: boolean;
   authMode: 'SSO' | 'JWT' | 'NONE';
+  requireLogin?: boolean;  // 是否强制要求登录（由 DATAMATE_JWT_ENABLE 控制）
 }
 
 function loginUsingPost(data: any) {
@@ -30,8 +33,8 @@ function getCurrentUser() {
 }
 
 // ME 登录 URL（根据实际环境修改）
-const ME_LOGIN_URL = process.env.VITE_ME_LOGIN_URL || 'https://modelengine.com/login';
-const OMS_LOGOUT_URL = process.env.VITE_OMS_LOGOUT_URL || 'https://oms-service/logout';
+const ME_LOGIN_URL = import.meta.env.VITE_ME_LOGIN_URL || 'https://modelengine.com/login';
+const OMS_LOGOUT_URL = import.meta.env.VITE_OMS_LOGOUT_URL || 'https://oms-service/logout';
 
 export function Header() {
   const { t } = useTranslation();
@@ -121,6 +124,19 @@ export function Header() {
     setSignupOpen(true);
   };
 
+  const handleHomeClick = useCallback((e: React.MouseEvent) => {
+    const homeUrl = getCachedHomePageUrl();
+    if (homeUrl) {
+      e.preventDefault();
+      window.location.href = homeUrl;
+    }
+  }, []);
+
+  // 已登录时后台刷新缓存，保持与后端同步
+  useEffect(() => {
+    getHomePageUrl().then(url => setCachedHomePageUrl(url)).catch(() => {});
+  }, []);
+
   // 检测是否在 ME 环境
   const isSSOAvailable = () => {
     const hostname = window.location.hostname;
@@ -139,18 +155,13 @@ export function Header() {
           setCurrentUser(response.data);
           setAuthMode(response.data.authMode);
 
-          // 如果未登录，根据模式处理
+          // 如果未登录，根据 requireLogin 决定是否弹出登录框
           if (!response.data.authenticated) {
-            if (isSSOAvailable()) {
-              // SSO 模式：自动跳转到 ME 登录
-              console.log('SSO mode detected, redirecting to ME login...');
-              // 不自动跳转，等待用户点击登录按钮
-            } else {
-              // JWT 模式：保持未登录状态
-              console.log('JWT mode, waiting for user to login');
+            if (response.data.requireLogin) {
+              // 强制要求登录：弹出登录框
+              window.dispatchEvent(new CustomEvent('show-login'));
             }
-          } else {
-            console.log(`User authenticated via ${response.data.authMode}:`, response.data.username);
+            // 不强制登录：允许匿名访问
           }
         }
       } catch (error) {
@@ -269,7 +280,7 @@ export function Header() {
         <div className="flex h-14 items-center justify-between px-6">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
-              <NavLink to="/" className="flex items-center gap-2 cursor-pointer">
+              <NavLink to="/" onClick={handleHomeClick} className="flex items-center gap-2 cursor-pointer">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-white" />
                 </div>

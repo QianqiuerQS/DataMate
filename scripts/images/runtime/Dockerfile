@@ -3,7 +3,18 @@ FROM ghcr.io/astral-sh/uv:python3.11-bookworm
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
     apt update \
-    && apt install -y libgl1 libglib2.0-0 vim libmagic1 libreoffice dos2unix swig poppler-utils tesseract-ocr
+    && apt install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        vim \
+        libmagic1 \
+        libreoffice \
+        dos2unix \
+        swig \
+        poppler-utils \
+        tesseract-ocr \
+        ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /home/models \
     && wget https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-LCNet_x1_0_doc_ori_infer.tar \
@@ -18,6 +29,7 @@ COPY scripts/images/runtime/start.sh /opt/runtime/start.sh
 ENV PYTHONPATH=/opt/runtime/datamate/
 ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
 ENV UV_INDEX_STRATEGY=unsafe-best-match
+ENV TORCH_DEVICE_BACKEND_AUTOLOAD=0
 
 WORKDIR /opt/runtime
 
